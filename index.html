@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="styles/prism.css" rel="stylesheet" />
+    <link href="styles/style.css" rel="stylesheet" />
+    <script src='scripts/packer.js'></script>
+    <script src="scripts/prism.js"></script>
+    <title>Solidity Struct Packing</title>
+    
+</head>
+<body>
+    <textarea id="editing" spellcheck="false" oninput="update(this.value); sync_scroll(this);" onscroll="sync_scroll(this);" onkeydown="check_tab(this, event);"></textarea>
+
+    <div>
+        <pre id="unpacked" aria-hidden="true" class="code-box">
+            <code class="language-solidity" id="unpacked-content"></code>
+        </pre>
+    </div>
+    <div class="empty"></div>
+    <div>
+        <h3 id="info"></h3>
+        <button type="button" onclick="pack_struct()">Pack Struct</button>
+    </div>
+    <div>
+        <pre id="packed" aria-hidden="true" class="code-box">
+            <code class="language-solidity" id="packed-content"></code>
+        </pre>
+    </div>
+
+    
+    
+    
+    <script>
+        // Huge shoutout to https://css-tricks.com/creating-an-editable-textarea-that-supports-syntax-highlighted-code/
+        // 99% of the 'ide' code is from this
+        function update(text) {
+            let result_element = document.querySelector("#unpacked-content");
+            // Handle final newlines (see article)
+            if(text[text.length-1] == "\n") {
+                text += " ";
+            }
+            // Update code
+            result_element.innerHTML = text.replace(new RegExp("&", "g"), "&amp;").replace(new RegExp("<", "g"), "&lt;"); /* Global RegExp */
+            // Syntax Highlight
+            Prism.highlightElement(result_element);
+        }
+
+        function sync_scroll(element) {
+            /* Scroll result to scroll coords of event - sync with textarea */
+            let result_element = document.querySelector("#unpacked");
+            // Get and set x and y
+            result_element.scrollTop = element.scrollTop;
+            result_element.scrollLeft = element.scrollLeft;
+        }
+
+        function check_tab(element, event) {
+            let code = element.value;
+            if(event.key == "Tab") {
+                /* Tab key pressed */
+                event.preventDefault(); // stop normal
+                let before_tab = code.slice(0, element.selectionStart); // text before tab
+                let after_tab = code.slice(element.selectionEnd, element.value.length); // text after tab
+                let cursor_pos = element.selectionEnd + 1; // where cursor moves after tab - moving forward by 1 char to after tab
+                element.value = before_tab + "\t" + after_tab; // add tab char
+                // move cursor
+                element.selectionStart = cursor_pos;
+                element.selectionEnd = cursor_pos;
+                update(element.value); // Update text to include indent
+            }
+        }
+
+        function pack_struct() {
+            struct = document.querySelector('#unpacked').textContent
+            w.postMessage(`contract C { ${struct} Unpacked unpacked;}`)
+        }
+
+        document.querySelector('#editing').value = 'struct Unpacked {\n\t\n}'
+        update('struct Unpacked {\n\t\n}')
+
+        // bruh solc has got me fucked up making me use this Worker shit
+        var w = new Worker('scripts/solc-worker.js')
+
+        w.onmessage = (msg) => {
+            if (msg.data.error) return console.error(msg.data.error)
+            
+            const types = msg.data.storageLayout.types
+            console.log(types)
+            let structInfo
+            var structTypes = []
+            for (type in types) {
+                if (type.includes('t_struct(Unpacked)')) {
+                    structInfo = types[type]
+                    structTypes = structInfo.members.map(v => { return {"type": v.type, "label": v.label} })
+                }
+            }
+
+            
+
+            const bytesFromType = (type) => { return parseInt(types[type.type].numberOfBytes) }
+
+            //https://github.com/polo-language/bin-packer
+            //TODO: impl this myself when less lazy
+            const bins = packer.binCompletion(structTypes, bytesFromType, 32).bins
+
+            const displayFromType = (type) => {
+                if (type == 't_string_storage') return 'string'
+                if (type == 't_bytes_storage') return 'bytes'
+                if (type.startsWith('t_array')) return displayFromType(type.substring(8, type.length-12)) + '[]'
+                return type.substring(2)
+            }
+
+            //Generate the packed struct text
+            let packedText = 'struct Packed {\n'
+
+            for (i in bins) {
+                let s = 0
+                bins[i].forEach(e => s += bytesFromType(e))
+                packedText += `\t//Slot #${parseInt(i)+1} - ${s}/32 bytes\n`
+                for (j in bins[i]) {
+                    t = bins[i][j]
+                    packedText += '\t' + displayFromType(t.type) + ' ' + t.label + ';\n'
+                }
+            }
+
+            packedText += '}'
+            let result_element = document.querySelector("#packed-content");
+            // Handle final newlines (see article)
+            if(packedText[packedText.length-1] == "\n") {
+                packedText += " ";
+            }
+            // Update code
+            result_element.innerHTML = packedText
+            // Syntax Highlight
+            Prism.highlightElement(result_element);
+
+            
+            //Generate the unpacked struct text with comments
+            const unpackedBins = packer.nextFit(structTypes, bytesFromType, 32).bins
+
+            let unpackedText = 'struct Unpacked {\n'
+
+            
+            for (i in unpackedBins) {
+                let s = 0
+                const bin = unpackedBins[i]
+                bin.forEach(e => s += bytesFromType(e))
+                unpackedText += `\t//Slot #${parseInt(i)+1} - ${s}/32 bytes\n`
+                for (j in bin) {
+                    t = bin[j]
+                    unpackedText += '\t' + displayFromType(t.type) + ' ' + t.label + ';\n'
+                }
+            }
+
+            unpackedText += '}'
+            
+            document.querySelector('#editing').value = unpackedText
+            update(unpackedText)
+
+            document.querySelector('#info').textContent = `Unpacked slots used: ${structInfo.numberOfBytes/32} - Packed slots used: ${bins.length}`
+        }
+
+        
+    </script>
+</body>
+</html>

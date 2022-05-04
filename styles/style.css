@@ -1,0 +1,67 @@
+#editing, #unpacked, #packed {
+    /* Both elements need the same text and space styling so they are directly on top of each other */
+    margin: 10px;
+    padding: 10px;
+    border: 0;
+    width: calc(100% - 32px);
+    height: 500px;
+  }
+  #editing, #unpacked, #unpacked *, #packed {
+    /* Also add text styles to highlighing tokens */
+    font-size: 12pt;
+    font-family: monospace;
+    line-height: 15pt;
+    tab-size: 3;
+  }
+  
+  
+  #editing, #unpacked {
+    /* In the same place */
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  
+  
+  /* Move the textarea in front of the result */
+  
+  #editing {
+    z-index: 1;
+  }
+  #unpacked {
+    z-index: 0;
+  }
+  
+  
+  /* Make textarea almost completely transparent */
+  
+  #editing {
+    color: transparent;
+    background: transparent;
+    caret-color: white; /* Or choose your favourite color */
+  }
+  
+  /* Can be scrolled */
+  #editing, #unpacked, #packed {
+    overflow: auto;
+    white-space: nowrap; /* Allows textarea to scroll horizontally */
+  }
+  
+  /* No resize on textarea */
+  #editing {
+    resize: none;
+  }
+  
+  #packed {
+      height: 600px;
+  }
+
+  .empty {
+    margin-top: 550px;
+  }
+
+  body {
+    font-size: 12pt;
+    font-family: monospace;
+    line-height: 15pt;
+  }
