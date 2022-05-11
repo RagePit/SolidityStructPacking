@@ -89,11 +89,14 @@
             const types = msg.data.storageLayout.types
             console.log(types)
             let structInfo
-            var structTypes = []
+            var structTypes = {}
             for (type in types) {
                 if (type.includes('t_struct(Unpacked)')) {
                     structInfo = types[type]
-                    structTypes = structInfo.members.map(v => { return {"type": v.type, "label": v.label} })
+                    for (i in structInfo.members) {
+                        v = structInfo.members[i]
+                        structTypes[i] = {"type": v.type, "label": v.label}
+                    }
                 }
             }
 
